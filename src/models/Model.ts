@@ -1,12 +1,12 @@
-import { AxiosPromise } from "axios";
+import { AxiosPromise, AxiosResponse } from "axios";
 
-interface ModelAttibutes<T>{
+interface ModelAttributes<T>{
     set(update:T): void;
     getAll(): T;
     get<K extends keyof T>(key: K): T[K];
 }
 
-interface Sync{
+interface Sync<T>{
     fetch(id:number): AxiosPromise;
     save(data:T): AxiosPromise;
 }
@@ -16,6 +16,44 @@ interface Events{
     trigger(evnetName: string): void;
 }
 
-export class Model{
+interface Hasid{
+    id?: number
+}
 
+export class Model<T extends Hasid>{
+    constructor(
+        private attributes: ModelAttributes<T>,
+        private events: Events,
+        private sync: Sync<T>
+        ){}
+
+        on = this.events.on;
+         trigger= this.events.trigger;
+        
+        get= this.attributes.get
+         
+        set(update: T):void{
+            this.attributes.set(update);
+            this.events.trigger('change');
+        }
+    
+        fetch(): void {
+            const id = this.attributes.get('id');
+            if( typeof id !== 'number'){
+                throw new Error('Cannot fetch without an id');
+                
+            }
+    
+            this.sync.fetch(id).then((response: AxiosResponse):void =>{
+                this.attributes.set(response.data);
+            });
+        }
+    
+        save(): void {
+            this.sync.save(this.attributes.getAll()).then((resposne:AxiosResponse):void =>{
+                this.trigger('save');
+            }).catch(()=>{
+                throw new Error("No Fetch");
+            });
+        }
 }
